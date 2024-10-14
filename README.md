@@ -1,11 +1,14 @@
-In this tutorial, each DNN, FCN, LSTM, or BLSTM model is implemented to perform a speech enhancement system. It is worth noting that the model structures of DNN, LSTM, and BLSTM used for the VoiceBank-DEMAND dataset were not optimized. Instead, the FCN model is reimplemented based on [research](https://ieeexplore.ieee.org/document/8281993):
+# VoiceBank_DEMAND_SETutorial
+Signal channel speech enhancement tutorial on VoiceBank+DEMAND database 
+
+In this tutorial, each DNN, FCN, LSTM, or BLSTM model is implemented to perform a speech enhancement system. It is worth noting that the DNN, LSTM, and BLSTM model structures used for the VoiceBank-DEMAND dataset were not optimized. Instead, the FCN model is reimplemented based on [research](https://ieeexplore.ieee.org/document/8281993):
 
 S.-W. Fu, Y. Tsao, X. Lu, and H. Kawai, "Raw waveform-based speech enhancement via fully convolutional networks," Proc. APSIPA ASC, 2017.
 
 ***
 ### Usage:
 
-**1. List preparison:**
+**1. List preparation:**
 ```
 python VCTK_list_prepared.py --mode train (train_noisy_folder_path) (train_clean_folder_path) .;
 ```
