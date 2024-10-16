@@ -18,11 +18,11 @@ python VCTK_list_prepared.py --mode test (test_noisy_folder_path) (test_clean_fo
    
 **2. Training:**
 ```
-CUDA_VISIBLE_DEVICES=0 python DNNMain.py --model_save_path ./model --model_name (Model) --num_workers 0 --sampling_rate 16000 --mode train --batch_size 16 --num_epochs (100 or 500) --test_interval 10 --frame_size 400 --n_fft 512 --hop_length 256 vctk_training.list vctk_valid.list;
+CUDA_VISIBLE_DEVICES=0 python Main.py --model_save_path ./model --model_name (Model) --num_workers 8 --sampling_rate 16000 --mode train --batch_size 16 --num_epochs (100 or 500) --test_interval 10 --frame_size 400 --n_fft 512 --hop_length 256 vctk_training.list vctk_valid.list;
 ```   
 **3. Testing:**
 ```
-CUDA_VISIBLE_DEVICES=0 python DNNMain.py --model_save_path ./model --model_name (Model) --num_workers 8 --sampling_rate 16000 --mode test --frame_size 400 --n_fft 512 --hop_length 256 vctk_testing.list ./Enhance/(Model);
+CUDA_VISIBLE_DEVICES=0 python Main.py --model_save_path ./model --model_name (Model) --num_workers 8 --sampling_rate 16000 --mode test --frame_size 400 --n_fft 512 --hop_length 256 vctk_testing.list ./Enhance/(Model);
 ```	
 **3. Evaluation:**
 ```
