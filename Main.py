@@ -24,7 +24,7 @@ def get_args():
     
     # Model setting
     parser.add_argument('--model_save_path', default=os.getcwd(), type=str)
-    parser.add_argument('--model_name', choices=['LSTM', 'BLSTM', 'DNN', 'FCN'], default='DNN', type=str)
+    parser.add_argument('--model_name', choices=['LSTM', 'BLSTM', 'DNN', 'FCN','EnsDNN','EnsLSTM','EnsBLSTM','EnsFCN'], default='DNN', type=str)
     parser.add_argument('--num_workers', default=3, type=int)
     parser.add_argument('--seed', default=999, type=int)   
     parser.add_argument('--mode', default='train', choices=['train','test'], type=str)
@@ -123,12 +123,23 @@ if __name__ == '__main__':
         print(f'DEVICE: [{torch.cuda.current_device()}] {torch.cuda.get_device_name()}')
     else:
         print(f'DEVICE: CPU')
-        
+
+    mdlNme = args.model_name
+    
     exec (f"from models import {args.model_name} as Mdl")               #ex. from models import DNN as Mdl
-    exec (f"from proc import AgentTrTser{args.model_name} as AgenTrTs") #ex. from proc import AgentTrTserDNN as AgenTrTs
-    exec (f"from util import Dataset_{args.model_name} as DtSe")        #ex. from util import Dataset_DNN as DtSe
-    exec (f"from util import collate_fn_{args.model_name} as Cofn")     #ex. from util import collate_fn_DNN as Cofn
-        
+    if any(mdlNme.lower() == mdlnme for mdlnme in ['lstm','enslstm','blstm','ensblstm']):
+        from proc import AgentTrTserLSTM as AgenTrTs
+        from util import Dataset_LSTM as DtSe
+        from util import collate_fn_LSTM as Cofn
+    elif any(mdlNme.lower() == mdlnme for mdlnme in ['dnn','ensdnn']): #ex. from util import Dataset_DNN as DtSe
+        from proc import AgentTrTserDNN as AgenTrTs
+        from util import Dataset_DNN as DtSe
+        from util import collate_fn_DNN as Cofn
+    elif any(mdlNme.lower() == mdlnme for mdlnme in ['fcn']): #ex. from util import collate_fn_DNN as Cofn
+        from proc import AgentTrTserFCN as AgenTrTs
+        from util import Dataset_FCN as DtSe
+        from util import collate_fn_FCN as Cofn
+
     # declair path
     checkpoint_path, model_path = get_path(args)
         

@@ -10,8 +10,8 @@ import random
 import os
 import subprocess
 import sys
-import ipdb
 import argparse
+import ipdb
 import torch
 import h5py
 import math
@@ -81,7 +81,7 @@ def Mdl_Config(args, model, checkpoint_path, model_path, device = 'cuda'):
     writer = SummaryWriter(checkpoint_path)
     writer.add_hparams(vars(args), dict())
 
-    model.apply(weights_init)
+    #model.apply(weights_init)
     if args.pretrain_mdl_pth != 'None':
         model = load_pre_train_mdl(model, join(args.pretrain_mdl_pth, 'mdl_save.pkl'), device)
         #checkpoint = torch.load(join(args.pretrain_mdl_pth, 'mdl_save.pkl'))
@@ -91,7 +91,7 @@ def Mdl_Config(args, model, checkpoint_path, model_path, device = 'cuda'):
         ##        Param.requires_grad = False
 
     #criterion = importlib.import_module('loss').__getattribute__(loss_fn)
-    criterion = LossFunFCN(args)
+    criterion = LossFun(args)
     
     warm_up_with_cosine_lr = lambda epoch: epoch / args.warm_up_epochs if epoch <= args.warm_up_epochs else 0.5 * ( math.cos((epoch - args.warm_up_epochs) /(args.num_epochs - args.warm_up_epochs) * math.pi) + 1)
 
@@ -122,30 +122,42 @@ def load_pre_train_mdl(model, pretrain_mdl_pth, device = 'cuda'):
             model.state_dict()[LayNme].copy_(Param[0:m_dim])
             
     return model
-        
-class LossFunFCN(nn.Module):
+
+class LossFun(nn.Module):
     def __init__(self, args):
-        super(LossFunFCN, self).__init__()
+        super(LossFun, self).__init__()
         
         self.Dtype = torch.float
 
         self.weight = torch.from_numpy(np.array(args.loss_wei.split(',')).astype('float64')).type(self.Dtype)
 
-        self.MSELoss = nn.MSELoss()
-        self.CEtLoss = nn.CrossEntropyLoss()
+        self.MSELoss = nn.MSELoss()        
         self.L1NLoss = nn.L1Loss()
+        self.CEtLoss = nn.CrossEntropyLoss()
         self.L1SLoss = nn.SmoothL1Loss()        
+
+        self.MdlNme = args.model_name
 
     def forward(self, DecPred, DecTar):
     
-        ModlOutReal = torch.real(DecPred['mdloupt']).type(self.Dtype)
-        ModlRefReal = torch.real(DecTar['modlRef']).type(self.Dtype)
+        if any(self.MdlNme.lower() == mdlnme for mdlnme in ['lstm','enslstm','blstm','ensblstm','ensdnn', 'dnn']):
+            WavfOut = torch.real(DecPred['wavfout']).type(self.Dtype)
+            ModlOut = torch.real(DecPred['mdloupt']).type(self.Dtype)
+        
+            WavfRef = torch.real(DecTar['wavfRef']).type(self.Dtype)
+            ModlRef = torch.real(DecTar['modlRef']).type(self.Dtype)
+        elif any(self.MdlNme.lower() == mdlnme for mdlnme in ['ensfcn', 'fcn']):
+            WavfOut = torch.real(DecPred['mdloupt']).type(self.Dtype)
+            WavfRef = torch.real(DecTar['modlRef']).type(self.Dtype)
+            ModlOut = WavfOut
+            ModlRef = WavfRef
 
-        f_loss = self.L1NLoss(ModlOutReal, ModlRefReal)
-        s_loss = self.MSELoss(ModlOutReal, ModlRefReal)
+        f_loss = self.L1NLoss(ModlOut, ModlRef)
+        s_loss = self.MSELoss(WavfOut, WavfRef)
+           
         t_loss = self.weight[0] * f_loss + self.weight[1] * s_loss
         
-        return {'fullLoss': t_loss, 'wavfLoss': f_loss, 'moutLoss': s_loss}
+        return {'fullLoss': t_loss, 'wavfLoss': s_loss, 'moutLoss': f_loss}
         
 class AgentTrTserFCN:
     def __init__(self, device, args):
@@ -154,7 +166,7 @@ class AgentTrTserFCN:
         self.Args = args
         
         self.Dtype = torch.float
-
+        
     def train(self, InpMdl, Mdl_Cfg, DtaLoader):
 
         self._pre_setting_for_train(InpMdl, Mdl_Cfg, DtaLoader)
@@ -406,32 +418,6 @@ class AgentTrTserFCN:
 
         return score
 
-class LossFunLSTM(nn.Module):
-    def __init__(self, args):
-        super(LossFunLSTM, self).__init__()
-        
-        self.Dtype = torch.float
-
-        self.weight = torch.from_numpy(np.array(args.loss_wei.split(',')).astype('float64')).type(self.Dtype)
-
-        self.MSELoss = nn.MSELoss()
-        self.L1NLoss = nn.L1Loss()
-
-    def forward(self, DecPred, DecTar):
-    
-        WavfOut = torch.real(DecPred['wavfout']).type(self.Dtype)
-        ModlOut = torch.real(DecPred['mdloupt']).type(self.Dtype)
-        
-        WavfRef = torch.real(DecTar['wavfRef']).type(self.Dtype)
-        ModlRef = torch.real(DecTar['modlRef']).type(self.Dtype)
-
-        f_loss = self.L1NLoss(ModlOut, ModlRef)
-        s_loss = self.MSELoss(WavfOut, WavfRef)
-           
-        t_loss = self.weight[0] * f_loss + self.weight[1] * s_loss
-        
-        return {'fullLoss': t_loss, 'specLoss': f_loss, 'wavfLoss': s_loss}
-        
 class AgentTrTserLSTM:
     def __init__(self, device, args):
 
@@ -499,7 +485,7 @@ class AgentTrTserLSTM:
             loss = self._step_tr(FeaDict)
             self.TrFullLoss += loss['fullLoss'].item()
             self.TrWavfLoss += loss['wavfLoss'].item()
-            self.TrMFeaLoss += loss['specLoss'].item()
+            self.TrMFeaLoss += loss['moutLoss'].item()
             
             ShowFull = self.TrFullLoss/(itrNum + 1)
             ShowWavf = self.TrWavfLoss/(itrNum + 1)
@@ -543,7 +529,7 @@ class AgentTrTserLSTM:
 
             self.VaFullLoss += loss['fullLoss'].item()
             self.VaWavfLoss += loss['wavfLoss'].item()
-            self.VaMFeaLoss += loss['specLoss'].item()
+            self.VaMFeaLoss += loss['moutLoss'].item()
             
             ShowFull = self.VaFullLoss/(itrNum + 1)
             ShowWavf = self.VaWavfLoss/(itrNum + 1)
@@ -638,10 +624,10 @@ class AgentTrTserLSTM:
         
     def _load_Mdl(self, InpMdl):
         print(f'Loading model from {self.MdlPth}')
-
+        
         self.DeepMdl = InpMdl
 
-        checkpoint = torch.load(self.MdlPth,map_location = self.device)
+        checkpoint = torch.load(self.MdlPth,map_location = self.device,weights_only=False)
         self.DeepMdl.load_state_dict(checkpoint['model_state_dict'])
         self.DeepMdl.type(self.Dtype).to(self.device)
 
@@ -705,32 +691,6 @@ class AgentTrTserLSTM:
 
         return score
 
-class LossFunDNN(nn.Module):
-    def __init__(self, args):
-        super(LossFunDNN, self).__init__()
-        
-        self.Dtype = torch.float
-
-        self.weight = torch.from_numpy(np.array(args.loss_wei.split(',')).astype('float64')).type(self.Dtype)
-
-        self.MSELoss = nn.MSELoss()
-        self.L1NLoss = nn.L1Loss()
-
-    def forward(self, DecPred, DecTar):
-    
-        WavfOut = torch.real(DecPred['wavfout']).type(self.Dtype)
-        ModlOut = torch.real(DecPred['mdloupt']).type(self.Dtype)
-        
-        WavfRef = torch.real(DecTar['wavfRef']).type(self.Dtype)
-        ModlRef = torch.real(DecTar['modlRef']).type(self.Dtype)
-
-        f_loss = self.L1NLoss(ModlOut, ModlRef)
-        s_loss = self.MSELoss(WavfOut, WavfRef)
-           
-        t_loss = self.weight[0] * f_loss + self.weight[1] * s_loss
-        
-        return {'fullLoss': t_loss, 'specLoss': f_loss, 'wavfLoss': s_loss}
-        
 class AgentTrTserDNN:
     def __init__(self, device, args):
 
@@ -798,7 +758,7 @@ class AgentTrTserDNN:
             loss = self._step_tr(FeaDict)
             self.TrFullLoss += loss['fullLoss'].item()
             self.TrWavfLoss += loss['wavfLoss'].item()
-            self.TrMFeaLoss += loss['specLoss'].item()
+            self.TrMFeaLoss += loss['moutLoss'].item()
             
             ShowFull = self.TrFullLoss/(itrNum + 1)
             ShowWavf = self.TrWavfLoss/(itrNum + 1)
@@ -842,7 +802,7 @@ class AgentTrTserDNN:
 
             self.VaFullLoss += loss['fullLoss'].item()
             self.VaWavfLoss += loss['wavfLoss'].item()
-            self.VaMFeaLoss += loss['specLoss'].item()
+            self.VaMFeaLoss += loss['moutLoss'].item()
             
             ShowFull = self.VaFullLoss/(itrNum + 1)
             ShowWavf = self.VaWavfLoss/(itrNum + 1)
@@ -1003,3 +963,4 @@ class AgentTrTserDNN:
             score = 0.
 
         return score
+

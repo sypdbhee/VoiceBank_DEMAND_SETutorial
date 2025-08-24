@@ -140,7 +140,6 @@ class BLSTM(nn.Module):
     
         return self.LSTMMdl(Inp)
 
-
 class DNNBlock(nn.Module):
     def __init__(self, InpSize = 512, OutSize = 512):
         super(DNNBlock,self).__init__()
@@ -194,3 +193,141 @@ class DNN(nn.Module):
         MdlOut = self.OutFFBlock(LyrOut)  
 
         return MdlOut
+
+class EncLSTM(nn.Module):
+    def __init__(self, InpSize = 257, LaySize = 384, OutSize = 384, BiDir = False):
+        super(EncLSTM,self).__init__()
+
+        if BiDir:
+            LayerSize = LaySize * 2
+        else:
+            LayerSize = LaySize
+
+        self.LSTMBlockInp = LSTMBlock(InpSize,LaySize,BiDir)
+        self.LSTMBlockFir = LSTMBlock(LayerSize,LaySize,BiDir)
+        self.LSTMBlockSec = LSTMBlock(LayerSize,OutSize,BiDir)
+            
+    def forward(self, Inp):
+        
+        LyrOut = self.LSTMBlockInp(Inp)
+        LyrOut = self.LSTMBlockFir(LyrOut)  
+        MdlOut = self.LSTMBlockSec(LyrOut)  
+
+        return MdlOut
+
+class DecLSTM(nn.Module):
+    def __init__(self, InpSize = 384, LaySize = 384, OutSize = 257, BiDir = False):
+        super(DecLSTM,self).__init__()
+
+        if BiDir:
+            LayerSize = LaySize * 2
+        else:
+            LayerSize = LaySize
+
+        self.LSTMBlockThi = LSTMBlock(InpSize,LaySize,BiDir)
+        self.LSTMBlockFou = LSTMBlock(LayerSize,LaySize,BiDir)
+        self.LSTMBlockFiv = LSTMBlock(LayerSize,LaySize,BiDir)
+        self.OutFFBlock = OutFFBlock(LayerSize, OutSize)
+            
+    def forward(self, Inp):
+        
+        LyrOut = self.LSTMBlockThi(Inp)      
+        LyrOut = self.LSTMBlockFou(LyrOut)      
+        LyrOut = self.LSTMBlockFiv(LyrOut)      
+        MdlOut = self.OutFFBlock(LyrOut)  
+
+        return MdlOut
+
+class EnsLSTM(nn.Module):
+    def __init__(self, args, InpSize = 257, BiDir = False):
+        super(EnsLSTM,self).__init__()
+
+        InitLayerSize = 384
+        if BiDir:
+            MulFactor = 4
+        else:
+            MulFactor = 2
+
+        self.FEncLSTM = EncLSTM(InpSize,InitLayerSize,InitLayerSize,BiDir)
+        self.SEncLSTM = EncLSTM(InpSize,InitLayerSize,InitLayerSize,BiDir)
+        self.ODecLSTM = DecLSTM(InitLayerSize * MulFactor,InitLayerSize,257,BiDir)
+            
+    def forward(self, Inp):
+        
+        FirOut = self.FEncLSTM(Inp)      
+        SecOut = self.SEncLSTM(Inp)      
+        LayOut = torch.cat((FirOut, SecOut), -1)
+        MdlOut = self.ODecLSTM(LayOut)  
+
+        return MdlOut
+
+class EncDNN(nn.Module):
+    def __init__(self, InpSize = 257, LaySize = 1024, OutSize = 257):
+        super(EncDNN,self).__init__()
+
+        LayerSize = LaySize
+
+        self.DNNBlockInp = DNNBlock(InpSize,LayerSize)
+        self.DNNBlockFir = DNNBlock(LayerSize,LayerSize)
+        self.DNNBlockSec = DNNBlock(LayerSize,LayerSize)
+        self.DNNBlockThi = DNNBlock(LayerSize,OutSize)
+            
+    def forward(self, Inp):
+        
+        LyrOut = self.DNNBlockInp(Inp)
+        LyrOut = self.DNNBlockFir(LyrOut)  
+        LyrOut = self.DNNBlockSec(LyrOut)  
+        MdlOut = self.DNNBlockThi(LyrOut)      
+
+        return MdlOut
+
+class DecDNN(nn.Module):
+    def __init__(self,  InpSize = 512, LaySize = 1024, OutSize = 257):
+        super(DecDNN,self).__init__()
+
+        LayerSize = LaySize
+
+        self.DNNBlockFou = DNNBlock(InpSize,LayerSize)
+        self.DNNBlockFif = DNNBlock(LayerSize,LayerSize)
+        self.DNNBlockSix = DNNBlock(LayerSize,LayerSize)
+        self.OutFFBlock = OutFFBlock(LayerSize, OutSize)
+            
+    def forward(self, Inp):
+        
+        LyrOut = self.DNNBlockFou(Inp)      
+        LyrOut = self.DNNBlockFif(LyrOut)      
+        LyrOut = self.DNNBlockSix(LyrOut)      
+        MdlOut = self.OutFFBlock(LyrOut)  
+
+        return MdlOut
+
+class EnsDNN(nn.Module):
+    def __init__(self, args):
+        super(EnsDNN,self).__init__()
+
+        LayerSize = 1024
+
+        self.FEncDNN = EncDNN(257,LayerSize,LayerSize)
+        self.SEncDNN = EncDNN(257,LayerSize,LayerSize)
+        self.ODecDNN = DecDNN(LayerSize * 2,LayerSize,257)
+            
+    def forward(self, Inp):
+        
+        FirOut = self.FEncDNN(Inp)      
+        SecOut = self.SEncDNN(Inp)      
+        LayOut = torch.cat((FirOut, SecOut), -1)
+        MdlOut = self.ODecDNN(LayOut)  
+
+        return MdlOut
+
+class EnsBLSTM(nn.Module):
+    def __init__(self, args, InpSize = 257):
+        super(EnsBLSTM,self).__init__()
+        
+        self.EnsLSTMMdl = EnsLSTM(args, InpSize, True)
+            
+    def forward(self, Inp):
+    
+        return self.EnsLSTMMdl(Inp)
+
+
